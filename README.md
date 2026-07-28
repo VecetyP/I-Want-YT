@@ -1,20 +1,17 @@
-# IWantYT — Glassmorphism YouTube Downloader
+# IWantYT — YouTube Downloader
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?style=for-the-badge&logo=fastapi)
 ![UI](https://img.shields.io/badge/Design-Glassmorphism-purple?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-**IWantYT** is a modern, high-performance YouTube video & audio downloader web application built with a **FastAPI** backend and an **Iridescent Light Theme Glassmorphism** frontend interface.
+**IWantYT** is a YouTube video & audio downloader web application.
 
 ---
 
 ## Features
 
-- **Iridescent Glassmorphism Light Theme**: Frosted glass panels (`backdrop-filter: blur(24px)`), smooth pastel mesh gradients, ambient floating glow effects, and modern typography.
-- **Fast & Responsive**: Real-time URL validation, video thumbnail & metadata fetching (author, views, duration).
 - **Multi-Quality Stream Selection**: Choose between Highest Resolution (1080p+), 720p HD, 360p SD, or Audio-Only MP3 extraction.
-- **Dual Engine Reliability**: Primary downloading powered by `pytubefix` with seamless automatic fallback to `yt-dlp`.
 - **Download Progress & History**: Live download status feedback and local session history saved in `localStorage`.
 - **Direct File Delivery**: Streams files directly to your browser's download manager with temporary file auto-cleanup.
 
