@@ -24,31 +24,32 @@
 
 ---
 
-## Quick Start Guide
+### One-Click Local Launcher (Recommended)
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git
-cd YOUR_REPOSITORY_NAME
-```
+- **Windows**: Double-click `run.bat` (or run `run.bat` in CMD / PowerShell).
+- **macOS / Linux**: Run `chmod +x run.sh && ./run.sh` in terminal.
 
-### 2. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
+This automatically creates a virtual environment, installs required dependencies, launches the server, and opens **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your web browser!
 
-### 3. Start the Web Application
-```bash
-python main.py
-```
+---
 
-Or run via Uvicorn directly:
-```bash
-uvicorn main:app --reload --port 8000
-```
+### Manual Setup
 
-### 4. Open in Browser
-Visit **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser!
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/VecetyP/I-Want-YT.git
+   cd I-Want-YT
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Start the Server**
+   ```bash
+   python main.py
+   ```
 
 ---
 
