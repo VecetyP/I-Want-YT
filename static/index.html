@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IWantYT — Glassmorphism YouTube Downloader</title>
+    <meta name="description" content="Download YouTube videos and MP3 audio instantly with a high-end light glassmorphism experience.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Animated Light Glassmorphism Background Elements -->
+    <div class="ambient-background">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="orb orb-4"></div>
+        <div class="glass-grid-overlay"></div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="app-viewport">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-play"></i>
+                </div>
+                <div class="logo-text">
+                    <span class="brand-name">IWant<span class="gradient-text">YT</span></span>
+                </div>
+            </div>
+            <div class="header-status">
+                <span class="status-indicator live"></span>
+                <span class="status-text">PyTube Engine Ready</span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Hero Banner -->
+            <section class="hero-section">
+                <h1 class="hero-title">
+                    Download Any YouTube Video in <span class="gradient-text">Crystal Quality</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Paste your video link to fetch HD videos or high-bitrate MP3 audio with instant local delivery.
+                </p>
+            </section>
+
+            <!-- URL Input Glass Card -->
+            <section class="glass-card search-card">
+                <form id="urlForm" class="url-form">
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-link input-icon"></i>
+                        <input 
+                            type="text" 
+                            id="ytUrlInput" 
+                            placeholder="Paste YouTube Video URL (e.g. https://www.youtube.com/watch?v=...)" 
+                            required
+                            autocomplete="off"
+                        >
+                        <button type="button" id="pasteBtn" class="btn-icon" title="Paste from clipboard">
+                            <i class="fa-regular fa-clipboard"></i>
+                        </button>
+                        <button type="button" id="clearBtn" class="btn-icon hidden" title="Clear input">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <button type="submit" id="fetchBtn" class="btn-primary">
+                        <span class="btn-text">Fetch Video</span>
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
+                </form>
+
+                <!-- Quick Samples -->
+                <div class="quick-samples">
+                    <span class="samples-label"><i class="fa-regular fa-lightbulb"></i> Try sample link:</span>
+                    <button class="sample-chip" data-url="https://www.youtube.com/watch?v=dQw4w9WgXcQ">Rick Astley - Never Gonna Give You Up</button>
+                    <button class="sample-chip" data-url="https://www.youtube.com/watch?v=FSwOEp7aKL4">Sample Test Clip</button>
+                </div>
+            </section>
+
+            <!-- Loading Spinner State -->
+            <div id="loaderCard" class="glass-card loader-card hidden">
+                <div class="loader-spinner"></div>
+                <p class="loader-text">Analyzing video metadata and resolution streams...</p>
+            </div>
+
+            <!-- Error Notification Banner -->
+            <div id="errorCard" class="glass-card error-card hidden">
+                <div class="error-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <div class="error-content">
+                    <h4 id="errorTitle">Unable to fetch video</h4>
+                    <p id="errorMsg">Please check the YouTube URL and try again.</p>
+                </div>
+                <button type="button" class="close-error-btn" id="closeErrorBtn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Video Preview & Download Options Glass Card -->
+            <section id="previewSection" class="glass-card preview-card hidden">
+                <div class="preview-layout">
+                    <!-- Thumbnail & Info -->
+                    <div class="media-preview-container">
+                        <div class="thumbnail-wrapper">
+                            <img id="videoThumb" src="" alt="Video Thumbnail" class="video-thumb">
+                            <div class="duration-pill" id="videoDuration">00:00</div>
+                            <div class="play-overlay">
+                                <i class="fa-solid fa-play"></i>
+                            </div>
+                        </div>
+                        <div class="video-meta">
+                            <h2 id="videoTitle" class="video-title">Video Title</h2>
+                            <div class="meta-row">
+                                <span class="meta-item"><i class="fa-solid fa-circle-user"></i> <span id="videoAuthor">Channel Name</span></span>
+                                <span class="meta-item"><i class="fa-solid fa-eye"></i> <span id="videoViews">0</span> views</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quality Stream Picker & Action -->
+                    <div class="download-action-panel">
+                        <h3 class="panel-heading"><i class="fa-solid fa-sliders"></i> Select Format & Quality</h3>
+                        
+                        <div class="quality-grid" id="qualityGrid">
+                            <!-- Stream options populated dynamically -->
+                        </div>
+
+                        <!-- Progress Bar Container -->
+                        <div id="downloadProgressContainer" class="progress-container hidden">
+                            <div class="progress-info">
+                                <span id="progressStatus" class="progress-status"><i class="fa-solid fa-spinner fa-spin"></i> Processing download on server...</span>
+                                <span id="progressPercent" class="progress-percent">Ready</span>
+                            </div>
+                            <div class="progress-bar-track">
+                                <div id="progressBarFill" class="progress-bar-fill"></div>
+                            </div>
+                        </div>
+
+                        <button type="button" id="startDownloadBtn" class="btn-download">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Download Now</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Downloads History Section -->
+            <section class="glass-card history-card">
+                <div class="history-header">
+                    <h3><i class="fa-solid fa-clock-rotate-left"></i> Download Session History</h3>
+                    <button type="button" id="clearHistoryBtn" class="btn-text-only">Clear History</button>
+                </div>
+                <div id="historyList" class="history-list">
+                    <div class="empty-history" id="emptyHistoryMsg">
+                        <i class="fa-solid fa-folder-open"></i>
+                        <p>No downloads yet in this session. Fetch a YouTube video above to start!</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>IWantYT &bull; Powered by Python FastAPI & pytubefix &bull; Glassmorphism Light Design</p>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <i id="toastIcon" class="fa-solid fa-circle-check"></i>
+        <span id="toastMessage">Success</span>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
