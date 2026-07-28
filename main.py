@@ -26,7 +26,19 @@ app.add_middleware(
 DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "iwantyt_downloads"
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-# Environment Cookie / PO Token support if set on Vercel
+# Load local .env file if present
+env_file = Path(__file__).parent / ".env"
+if env_file.exists():
+    try:
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ[k.strip()] = v.strip().strip("'\"")
+    except Exception as e:
+        print(f"Notice: Could not parse .env file: {e}")
+
 YT_COOKIES = os.environ.get("YT_COOKIES", None)
 PO_TOKEN = os.environ.get("PO_TOKEN", None)
 
