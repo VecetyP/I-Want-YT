@@ -39,6 +39,11 @@ if exist ".venv\Scripts\activate.bat" (
     echo [WARNING] Virtual environment activation script not found. Using system Python.
 )
 
+REM Free port 8000 if occupied by a previous server instance
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do (
+    taskkill /f /pid %%a >nul 2>&1
+)
+
 REM Install dependencies
 echo [INFO] Checking Python dependencies
 pip install -r requirements.txt --quiet
