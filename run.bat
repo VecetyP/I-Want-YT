@@ -1,5 +1,6 @@
 @echo off
-title IWantYT — Local YouTube Downloader
+setlocal enabledelayedexpansion
+title IWantYT Local Downloader
 cd /d "%~dp0"
 
 echo ========================================================
@@ -7,39 +8,56 @@ echo                 IWantYT Downloader
 echo ========================================================
 echo.
 
-:: Ensure Python is installed
+REM Check Python installation
 python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERROR] Python is not installed or not added to PATH.
-    echo Please install Python 3.10+ from https://www.python.org/
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] Python was not found on your system.
+    echo Please install Python 3.10 or higher from https://www.python.org/
+    echo Make sure to check "Add Python to PATH" during installation.
     echo.
     pause
-    exit /b
+    exit /b 1
 )
 
-:: Create virtual environment if missing
+REM Create virtual environment if missing
 if not exist ".venv" (
-    echo [INFO] Creating virtual environment (.venv)...
+    echo [INFO] Creating virtual environment .venv
     python -m venv .venv
+    if !ERRORLEVEL! neq 0 (
+        echo [ERROR] Failed to create virtual environment.
+        pause
+        exit /b 1
+    )
     echo [SUCCESS] Virtual environment created.
     echo.
 )
 
-:: Activate virtual environment
-call .venv\Scripts\activate.bat
+REM Activate virtual environment
+if exist ".venv\Scripts\activate.bat" (
+    call ".venv\Scripts\activate.bat"
+) else (
+    echo [WARNING] Virtual environment activation script not found. Using system Python.
+)
 
-:: Install dependencies
-echo [INFO] Checking dependencies...
+REM Install dependencies
+echo [INFO] Checking Python dependencies
 pip install -r requirements.txt --quiet
+if %ERRORLEVEL% neq 0 (
+    echo [WARNING] Pip install had warnings or errors. Attempting to start server anyway.
+)
 echo [SUCCESS] Dependencies ready.
 echo.
 
-:: Launch browser & start server
-echo [INFO] Opening web browser at http://127.0.0.1:8000 ...
-start "" "http://127.0.0.1:8000"
-
-echo [INFO] Starting FastAPI server...
+REM Start FastAPI server
+echo [INFO] Starting IWantYT server at http://127.0.0.1:8000
+echo [INFO] Press Ctrl+C in this window to stop the server.
 echo ========================================================
+echo.
+
 python main.py
 
-pause
+if %ERRORLEVEL% neq 0 (
+    echo.
+    echo [ERROR] Python server exited with error code %ERRORLEVEL%.
+    pause
+)
