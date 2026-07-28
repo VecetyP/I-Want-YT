@@ -23,6 +23,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    if request.url.path.endswith(".html") or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "iwantyt_downloads"
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -100,18 +109,25 @@ def fetch_oembed_info(url: str) -> dict:
 
 def get_youtube_instance(url: str) -> YouTube:
     """
-    Attempts to initialize pytubefix YouTube object by rotating client types
-    (ANDROID, IOS, TV, WEB_CREATOR, WEB).
+    Tries default pytubefix YouTube object first (fastest & 100% reliable locally),
+    then rotates client types (ANDROID, IOS, TV, WEB_CREATOR) if blocked on cloud.
     """
-    clients = ["ANDROID", "IOS", "TV", "WEB_CREATOR", "WEB"]
+    try:
+        if PO_TOKEN:
+            yt = YouTube(url, use_po_token=True, po_token=PO_TOKEN)
+        else:
+            yt = YouTube(url)
+        _ = yt.title
+        return yt
+    except Exception:
+        pass
+
+    clients = ["ANDROID", "IOS", "TV", "WEB_CREATOR"]
     last_err = None
     
     for client_name in clients:
         try:
-            if PO_TOKEN:
-                yt = YouTube(url, client=client_name, use_po_token=True, po_token=PO_TOKEN)
-            else:
-                yt = YouTube(url, client=client_name)
+            yt = YouTube(url, client=client_name)
             _ = yt.title
             return yt
         except Exception as e:
