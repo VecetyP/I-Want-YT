@@ -62,7 +62,7 @@ youtube_downloader_app/
 ├── .gitignore           # Git ignore rules for bytecode & temp files
 ├── LICENSE              # MIT Open Source License
 └── static/              # Frontend static web application assets
-    ├── index.html       # Light Glassmorphism UI layout
+    ├── index.html       # UI layout
     ├── style.css        # Custom CSS design system, glass effects & animations
     └── app.js           # Client-side API fetch logic & session history
 ```
