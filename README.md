@@ -19,7 +19,7 @@
 ## Tech Stack
 
 - **Backend**: Python 3.10+, FastAPI, Uvicorn, Pytubefix, yt-dlp
-- **Frontend**: HTML5, Vanilla CSS3 (Custom Glassmorphism Tokens), Vanilla JavaScript (ES6+), FontAwesome Icons
+- **Frontend**: HTML5, Vanilla CSS3, Vanilla JavaScript (ES6+), FontAwesome Icons
 
 ---
 
@@ -63,7 +63,7 @@ youtube_downloader_app/
 ├── LICENSE              # MIT Open Source License
 └── static/              # Frontend static web application assets
     ├── index.html       # UI layout
-    ├── style.css        # Custom CSS design system, glass effects & animations
+    ├── style.css        # Custom CSS design system, & animations
     └── app.js           # Client-side API fetch logic & session history
 ```
 
