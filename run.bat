@@ -1,13 +1,13 @@
 @echo off
-title IWantYT — Local YouTube Downloader Launcher
-cls
+title IWantYT — Local YouTube Downloader
+cd /d "%~dp0"
 
 echo ========================================================
 echo                 IWantYT Downloader
 echo ========================================================
 echo.
 
-:: Check for Python installation
+:: Ensure Python is installed
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Python is not installed or not added to PATH.
@@ -17,7 +17,7 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-:: Check if .venv virtual environment exists
+:: Create virtual environment if missing
 if not exist ".venv" (
     echo [INFO] Creating virtual environment (.venv)...
     python -m venv .venv
@@ -28,19 +28,17 @@ if not exist ".venv" (
 :: Activate virtual environment
 call .venv\Scripts\activate.bat
 
-:: Install / Update dependencies
-echo [INFO] Checking and installing dependencies...
+:: Install dependencies
+echo [INFO] Checking dependencies...
 pip install -r requirements.txt --quiet
-echo [SUCCESS] Dependencies are ready.
+echo [SUCCESS] Dependencies ready.
 echo.
 
-:: Open default browser after 2 seconds
+:: Launch browser & start server
 echo [INFO] Opening web browser at http://127.0.0.1:8000 ...
-timeout /t 2 >nul
-start http://127.0.0.1:8000
+start "" "http://127.0.0.1:8000"
 
-:: Start FastAPI Server
-echo [INFO] Starting FastAPI server on http://127.0.0.1:8000 (Press Ctrl+C to stop)...
+echo [INFO] Starting FastAPI server...
 echo ========================================================
 python main.py
 

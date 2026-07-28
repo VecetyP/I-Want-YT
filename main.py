@@ -320,5 +320,13 @@ static_path.mkdir(exist_ok=True)
 app.mount("/", StaticFiles(directory=str(static_path), html=True), name="static")
 
 if __name__ == "__main__":
+    import threading
+    import webbrowser
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+    def open_browser():
+        webbrowser.open("http://127.0.0.1:8000")
+
+    # Automatically open local web browser when starting locally
+    threading.Timer(1.2, open_browser).start()
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
