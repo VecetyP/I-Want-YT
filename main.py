@@ -221,12 +221,76 @@ def download_video(
     """Downloads YouTube video or audio and streams it back to the client as an attachment."""
     unique_id = str(uuid.uuid4())[:8]
     
+    # Primary: Try yt-dlp first for robust audio & video downloads without 403 errors
+    try:
+        import yt_dlp
+        out_tmpl = str(DOWNLOAD_DIR / f"%(title)s_{unique_id}.%(ext)s")
+        
+        common_ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'outtmpl': out_tmpl,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios', 'mweb']
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            }
+        }
+        if YT_COOKIES:
+            common_ydl_opts['http_headers']['Cookie'] = YT_COOKIES
+
+        if quality == "audio":
+            ydl_opts = {
+                **common_ydl_opts,
+                'format': 'bestaudio/best',
+            }
+        elif quality == "highest":
+            ydl_opts = {
+                **common_ydl_opts,
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            }
+        else:
+            ydl_opts = {
+                **common_ydl_opts,
+                'format': f'bestvideo[height<={quality.replace("p","")}][ext=mp4]+bestaudio[ext=m4a]/best[height<={quality.replace("p","")}][ext=mp4]/best',
+            }
+            
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            downloaded_file = ydl.prepare_filename(info)
+            
+            # Find generated file if extension shifted
+            if not os.path.exists(downloaded_file):
+                base, _ = os.path.splitext(downloaded_file)
+                for test_ext in ['.mp3', '.m4a', '.webm', '.mp4']:
+                    if os.path.exists(f"{base}{test_ext}"):
+                        downloaded_file = f"{base}{test_ext}"
+                        break
+            
+            clean_t = sanitize_filename(info.get('title', 'youtube_video'))
+            actual_ext = downloaded_file.split('.')[-1]
+            out_ext = "mp3" if quality == "audio" else actual_ext
+            user_filename = f"{clean_t}.{out_ext}"
+
+            return FileResponse(
+                path=downloaded_file,
+                filename=user_filename,
+                media_type="audio/mpeg" if quality == "audio" else "video/mp4",
+                background=BackgroundTask(cleanup_file, downloaded_file)
+            )
+    except Exception as ytdl_err:
+        pass
+
+    # Secondary: Fallback to PyTubeFix
     try:
         yt = get_youtube_instance(url)
         clean_title = sanitize_filename(yt.title)
         
         if quality == "audio":
-            stream = yt.streams.get_audio_only()
+            stream = yt.streams.filter(only_audio=True).first() or yt.streams.get_audio_only()
             ext = "mp3"
             filename = f"{clean_title}_{unique_id}.mp3"
         elif quality == "highest":
@@ -248,71 +312,14 @@ def download_video(
         return FileResponse(
             path=out_file_path,
             filename=user_download_filename,
-            media_type="application/octet-stream",
+            media_type="audio/mpeg" if quality == "audio" else "video/mp4",
             background=BackgroundTask(cleanup_file, str(out_file_path))
         )
-
-    except Exception as main_err:
-        try:
-            import yt_dlp
-            out_tmpl = str(DOWNLOAD_DIR / f"%(title)s_{unique_id}.%(ext)s")
-            
-            common_ydl_opts = {
-                'quiet': True,
-                'no_warnings': True,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'ios', 'mweb']
-                    }
-                },
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-                }
-            }
-            if YT_COOKIES:
-                common_ydl_opts['http_headers']['Cookie'] = YT_COOKIES
-
-            if quality == "audio":
-                ydl_opts = {
-                    **common_ydl_opts,
-                    'format': 'bestaudio/best',
-                    'outtmpl': out_tmpl,
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
-                }
-            else:
-                ydl_opts = {
-                    **common_ydl_opts,
-                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                    'outtmpl': out_tmpl,
-                }
-                
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                downloaded_file = ydl.prepare_filename(info)
-                if not os.path.exists(downloaded_file):
-                    base, _ = os.path.splitext(downloaded_file)
-                    if os.path.exists(f"{base}.mp3"):
-                        downloaded_file = f"{base}.mp3"
-                
-                clean_t = sanitize_filename(info.get('title', 'youtube_video'))
-                ext = downloaded_file.split('.')[-1]
-                user_filename = f"{clean_t}.{ext}"
-
-                return FileResponse(
-                    path=downloaded_file,
-                    filename=user_filename,
-                    media_type="application/octet-stream",
-                    background=BackgroundTask(cleanup_file, downloaded_file)
-                )
-        except Exception as fallback_err:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Cloud download blocked by YouTube bot protection. Please run locally or provide YT_COOKIES / PO_TOKEN. Details: {str(main_err)} | {str(fallback_err)}"
-            )
+    except Exception as py_err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Audio/Video download failed: {str(py_err)}"
+        )
 
 # Serve frontend static assets
 static_path = Path(__file__).parent / "static"
