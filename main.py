@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pytubefix import YouTube
-from pytubefix.cli import on_progress
 
 app = FastAPI(title="IWantYT Downloader API", version="1.0.0")
 
@@ -23,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "crystalytdl_downloads"
+DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "iwantyt_downloads"
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 def cleanup_file(filepath: str):
@@ -48,21 +47,36 @@ def format_duration(seconds: int) -> str:
         return f"{h}:{m:02d}:{s:02d}"
     return f"{m}:{s:02d}"
 
+def get_youtube_instance(url: str) -> YouTube:
+    """
+    Attempts to initialize pytubefix YouTube object by rotating client types
+    (ANDROID, IOS, TV, WEB) to bypass serverless/data-center bot detection.
+    """
+    clients = ["ANDROID", "IOS", "TV", "WEB_CREATOR", "WEB"]
+    last_err = None
+    
+    for client_name in clients:
+        try:
+            yt = YouTube(url, client=client_name)
+            # Force metadata fetch verification
+            _ = yt.title
+            return yt
+        except Exception as e:
+            last_err = e
+            continue
+            
+    raise last_err or Exception("All YouTube client attempts failed.")
+
 @app.get("/api/info")
 def get_video_info(url: str = Query(..., description="YouTube Video URL")):
     """Fetches video metadata, title, author, duration, thumbnail, and stream options."""
     try:
-        yt = YouTube(url)
-        
-        # Format duration
+        yt = get_youtube_instance(url)
         duration_str = format_duration(yt.length)
         
-        # Stream qualities available
         streams = []
-        # Audio option
         streams.append({"id": "audio", "label": "Audio Only (MP3)", "type": "audio", "badge": "MP3 Audio"})
         
-        # Progressive video options (video + audio combined)
         res_set = set()
         for s in yt.streams.filter(progressive=True):
             if s.resolution and s.resolution not in res_set:
@@ -74,7 +88,6 @@ def get_video_info(url: str = Query(..., description="YouTube Video URL")):
                     "badge": f"{s.resolution} MP4"
                 })
         
-        # Ensure highest resolution is listed first
         streams.insert(0, {"id": "highest", "label": "Highest Available Quality", "type": "video", "badge": "Best Quality"})
         
         return {
@@ -89,10 +102,22 @@ def get_video_info(url: str = Query(..., description="YouTube Video URL")):
             "streams": streams
         }
     except Exception as error:
-        # Fallback using yt-dlp if pytubefix encounters issues
+        # Robust yt-dlp fallback with cloud bot bypass client settings
         try:
             import yt_dlp
-            ydl_opts = {'quiet': True, 'skip_download': True}
+            ydl_opts = {
+                'quiet': True,
+                'skip_download': True,
+                'no_warnings': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'ios', 'mweb']
+                    }
+                },
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                }
+            }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 return {
@@ -112,7 +137,10 @@ def get_video_info(url: str = Query(..., description="YouTube Video URL")):
                     ]
                 }
         except Exception as fallback_err:
-            raise HTTPException(status_code=400, detail=f"Failed to fetch video details: {str(error)}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Failed to fetch video details. PyTube: {str(error)} | yt-dlp: {str(fallback_err)}"
+            )
 
 @app.get("/api/download")
 def download_video(
@@ -123,7 +151,7 @@ def download_video(
     unique_id = str(uuid.uuid4())[:8]
     
     try:
-        yt = YouTube(url)
+        yt = get_youtube_instance(url)
         clean_title = sanitize_filename(yt.title)
         
         if quality == "audio":
@@ -154,13 +182,27 @@ def download_video(
         )
 
     except Exception as main_err:
-        # Fallback to yt-dlp if pytubefix fails download
+        # Fallback using yt-dlp with cloud bot bypass client settings
         try:
             import yt_dlp
             out_tmpl = str(DOWNLOAD_DIR / f"%(title)s_{unique_id}.%(ext)s")
             
+            common_ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'ios', 'mweb']
+                    }
+                },
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                }
+            }
+
             if quality == "audio":
                 ydl_opts = {
+                    **common_ydl_opts,
                     'format': 'bestaudio/best',
                     'outtmpl': out_tmpl,
                     'postprocessors': [{
@@ -168,20 +210,18 @@ def download_video(
                         'preferredcodec': 'mp3',
                         'preferredquality': '192',
                     }],
-                    'quiet': True
                 }
             else:
                 ydl_opts = {
+                    **common_ydl_opts,
                     'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                     'outtmpl': out_tmpl,
-                    'quiet': True
                 }
                 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 downloaded_file = ydl.prepare_filename(info)
                 if not os.path.exists(downloaded_file):
-                    # Check for mp3 extension if audio
                     base, _ = os.path.splitext(downloaded_file)
                     if os.path.exists(f"{base}.mp3"):
                         downloaded_file = f"{base}.mp3"
