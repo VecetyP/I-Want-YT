@@ -149,21 +149,12 @@ def get_video_info(url: str = Query(..., description="YouTube Video URL")):
         yt = get_youtube_instance(url)
         duration_str = format_duration(yt.length)
         
-        streams = []
-        streams.append({"id": "audio", "label": "Audio Only (MP3)", "type": "audio", "badge": "MP3 Audio"})
-        
-        res_set = set()
-        for s in yt.streams.filter(progressive=True):
-            if s.resolution and s.resolution not in res_set:
-                res_set.add(s.resolution)
-                streams.append({
-                    "id": s.resolution,
-                    "label": f"{s.resolution} (Video + Audio)",
-                    "type": "video",
-                    "badge": f"{s.resolution} MP4"
-                })
-        
-        streams.insert(0, {"id": "highest", "label": "Highest Available Quality", "type": "video", "badge": "Best Quality"})
+        streams = [
+            {"id": "highest", "label": "Highest Quality MP4", "type": "video", "badge": "Best Quality"},
+            {"id": "720p", "label": "720p HD Video", "type": "video", "badge": "720p MP4"},
+            {"id": "360p", "label": "360p SD Video", "type": "video", "badge": "360p MP4"},
+            {"id": "audio", "label": "Audio Only (MP3)", "type": "audio", "badge": "MP3 Audio"}
+        ]
         
         return {
             "status": "success",
