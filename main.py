@@ -122,7 +122,7 @@ def get_youtube_instance(url: str) -> YouTube:
     except Exception:
         pass
 
-    clients = ["ANDROID", "IOS", "TV", "WEB_CREATOR"]
+    clients = ["ANDROID_VR", "ANDROID", "IOS", "TV", "WEB_CREATOR"]
     last_err = None
     
     for client_name in clients:
@@ -179,7 +179,7 @@ def get_video_info(url: str = Query(..., description="YouTube Video URL")):
             'no_warnings': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'mweb']
+                    'player_client': ['android_vr', 'android', 'ios', 'mweb']
                 }
             },
             'http_headers': {
@@ -239,7 +239,7 @@ def download_video(
             'outtmpl': out_tmpl,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'mweb']
+                    'player_client': ['android_vr', 'android', 'ios', 'mweb']
                 }
             },
             'http_headers': {
