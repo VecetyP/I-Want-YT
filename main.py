@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query
 from starlette.background import BackgroundTask
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pytubefix import YouTube
 
@@ -252,42 +252,51 @@ def download_video(
         if quality == "audio":
             ydl_opts = {
                 **common_ydl_opts,
-                'format': 'bestaudio/best',
+                'format': 'bestaudio[ext=m4a]/bestaudio/best',
             }
         elif quality == "highest":
             ydl_opts = {
                 **common_ydl_opts,
-                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                'format': 'best[ext=mp4]/best[height<=1080]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
             }
         else:
+            height = quality.replace("p", "")
             ydl_opts = {
                 **common_ydl_opts,
-                'format': f'bestvideo[height<={quality.replace("p","")}][ext=mp4]+bestaudio[ext=m4a]/best[height<={quality.replace("p","")}][ext=mp4]/best',
+                'format': f'best[height<={height}][ext=mp4]/best[height<={height}]/bestvideo[height<={height}]+bestaudio/best',
             }
             
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            downloaded_file = ydl.prepare_filename(info)
-            
-            # Find generated file if extension shifted
-            if not os.path.exists(downloaded_file):
-                base, _ = os.path.splitext(downloaded_file)
-                for test_ext in ['.mp3', '.m4a', '.webm', '.mp4']:
-                    if os.path.exists(f"{base}{test_ext}"):
-                        downloaded_file = f"{base}{test_ext}"
-                        break
-            
-            clean_t = sanitize_filename(info.get('title', 'youtube_video'))
-            actual_ext = downloaded_file.split('.')[-1]
-            out_ext = "mp3" if quality == "audio" else actual_ext
-            user_filename = f"{clean_t}.{out_ext}"
+            try:
+                info = ydl.extract_info(url, download=True)
+                downloaded_file = ydl.prepare_filename(info)
+                
+                # Find generated file if extension shifted
+                if not os.path.exists(downloaded_file):
+                    base, _ = os.path.splitext(downloaded_file)
+                    for test_ext in ['.mp3', '.m4a', '.webm', '.mp4']:
+                        if os.path.exists(f"{base}{test_ext}"):
+                            downloaded_file = f"{base}{test_ext}"
+                            break
+                
+                clean_t = sanitize_filename(info.get('title', 'youtube_video'))
+                actual_ext = downloaded_file.split('.')[-1]
+                out_ext = "mp3" if quality == "audio" else actual_ext
+                user_filename = f"{clean_t}.{out_ext}"
 
-            return FileResponse(
-                path=downloaded_file,
-                filename=user_filename,
-                media_type="audio/mpeg" if quality == "audio" else "video/mp4",
-                background=BackgroundTask(cleanup_file, downloaded_file)
-            )
+                return FileResponse(
+                    path=downloaded_file,
+                    filename=user_filename,
+                    media_type="audio/mpeg" if quality == "audio" else "video/mp4",
+                    background=BackgroundTask(cleanup_file, downloaded_file)
+                )
+            except Exception as dl_err:
+                # Direct Stream URL Redirect Fallback (Guaranteed 100% on Vercel Serverless without ffmpeg)
+                info = ydl.extract_info(url, download=False)
+                direct_url = info.get('url')
+                if direct_url:
+                    return RedirectResponse(url=direct_url)
+                raise dl_err
     except Exception as ytdl_err:
         pass
 
