@@ -220,6 +220,85 @@ def get_video_info(url: str = Query(..., description="YouTube Video URL")):
             detail=f"Unable to fetch video details on cloud server: {str(oembed_err)}"
         )
 
+@app.get("/api/stream-url")
+def get_stream_url(
+    url: str = Query(..., description="YouTube URL"),
+    quality: str = Query("highest", description="Stream quality (highest, 720p, 360p, audio)")
+):
+    """
+    Extracts direct CDN stream URLs without downloading anything.
+    The user's browser downloads directly from Google's CDN, bypassing
+    Vercel's timeout, disk, and ffmpeg constraints entirely.
+    """
+    try:
+        import yt_dlp
+
+        # Select format string based on quality - always prefer single progressive
+        # streams (with both audio+video) since they have a direct URL.
+        # Avoid merge formats (bestvideo+bestaudio) which need ffmpeg.
+        if quality == "audio":
+            fmt = 'bestaudio[ext=m4a]/bestaudio/best'
+        elif quality == "highest":
+            fmt = 'best[ext=mp4][height<=1080]/best[height<=1080]/best'
+        elif quality == "360p":
+            fmt = 'best[height<=360][ext=mp4]/best[height<=360]/best'
+        else:
+            height = quality.replace("p", "")
+            fmt = f'best[height<={height}][ext=mp4]/best[height<={height}]/best'
+
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+            'format': fmt,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android_vr', 'android', 'ios', 'mweb']
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            }
+        }
+        if YT_COOKIES:
+            ydl_opts['http_headers']['Cookie'] = YT_COOKIES
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+            # Extract the direct stream URL.
+            # Single-format selections populate info['url'] directly.
+            # Merge formats (bestvideo+bestaudio) populate info['requested_formats'] instead.
+            direct_url = info.get('url')
+            if not direct_url:
+                requested = info.get('requested_formats', [])
+                if requested:
+                    # For video, pick the video stream; for audio, pick the audio stream
+                    if quality == "audio":
+                        direct_url = requested[-1].get('url')  # last is typically audio
+                    else:
+                        direct_url = requested[0].get('url')   # first is typically video
+
+            if not direct_url:
+                raise Exception("Could not extract a direct stream URL from YouTube.")
+
+            title = sanitize_filename(info.get('title', 'youtube_video'))
+            ext = "mp3" if quality == "audio" else "mp4"
+
+            return JSONResponse({
+                "status": "success",
+                "stream_url": direct_url,
+                "filename": f"{title}.{ext}",
+                "title": info.get('title', 'YouTube Video'),
+            })
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stream URL extraction failed: {str(e)}"
+        )
+
+
 @app.get("/api/download")
 def download_video(
     url: str = Query(..., description="YouTube URL"),
