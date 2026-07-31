@@ -166,25 +166,74 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBarFill.style.width = '15%';
 
         try {
-            // ── Phase 1: Try /api/stream-url (works on Vercel & local) ──
-            // Server extracts the direct googlevideo.com CDN URL without downloading.
-            // The user's browser then downloads directly from the CDN (residential IP).
+            // ── Primary: Server-side processing & downloading (uses FFmpeg for full 1080p / 720p / HD MP4) ──
+            progressStatus.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing & downloading HD video on server...';
+            progressPercent.textContent = '30%';
+            progressBarFill.style.width = '40%';
+
+            try {
+                const downloadUrl = `/api/download?url=${encodeURIComponent(videoUrl)}&quality=${encodeURIComponent(quality)}`;
+                const response = await fetch(downloadUrl);
+
+                if (response.ok) {
+                    progressPercent.textContent = '85%';
+                    progressBarFill.style.width = '88%';
+
+                    // Get filename from response header if available
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let filename = `${currentVideoData.title}.${quality === 'audio' ? 'mp3' : 'mp4'}`;
+                    if (contentDisposition && contentDisposition.includes('filename=')) {
+                        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+                        if (matches && matches[1]) {
+                            filename = matches[1].replace(/['"]/g, '');
+                        }
+                    }
+
+                    // Stream response to blob
+                    const blob = await response.blob();
+                    const blobUrl = window.URL.createObjectURL(blob);
+
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(blobUrl);
+
+                    // Finish Progress
+                    progressPercent.textContent = '100%';
+                    progressBarFill.style.width = '100%';
+                    progressStatus.innerHTML = '<i class="fa-solid fa-circle-check" style="color: #10b981;"></i> Download Complete!';
+
+                    addHistoryItem({
+                        title: currentVideoData.title,
+                        url: currentVideoData.url,
+                        quality: quality.toUpperCase(),
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    });
+
+                    showToast('Download started! Check your downloads folder.');
+
+                    setTimeout(() => {
+                        startDownloadBtn.disabled = false;
+                    }, 1000);
+                    return; // Done
+                }
+            } catch (serverErr) {
+                console.warn('Server download failed, attempting CDN fallback:', serverErr);
+            }
+
+            // ── Secondary Fallback: Direct CDN stream extraction ──
+            progressStatus.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Attempting CDN direct stream...';
             const streamApiUrl = `/api/stream-url?url=${encodeURIComponent(videoUrl)}&quality=${encodeURIComponent(quality)}`;
             const streamResp = await fetch(streamApiUrl);
 
             if (streamResp.ok) {
                 const streamData = await streamResp.json();
                 if (streamData.status === 'success' && streamData.stream_url) {
-                    progressStatus.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Downloading from CDN...';
-                    progressPercent.textContent = '40%';
-                    progressBarFill.style.width = '50%';
-
-                    // Fetch the file from CDN via the browser (user's residential IP, bypasses bot blocks)
                     const cdnResp = await fetch(streamData.stream_url);
                     if (cdnResp.ok) {
-                        progressPercent.textContent = '80%';
-                        progressBarFill.style.width = '85%';
-
                         const blob = await cdnResp.blob();
                         const blobUrl = window.URL.createObjectURL(blob);
                         const link = document.createElement('a');
@@ -195,7 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.body.removeChild(link);
                         window.URL.revokeObjectURL(blobUrl);
 
-                        // Success
                         progressPercent.textContent = '100%';
                         progressBarFill.style.width = '100%';
                         progressStatus.innerHTML = '<i class="fa-solid fa-circle-check" style="color: #10b981;"></i> Download Complete!';
@@ -209,67 +257,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         showToast('Download started! Check your downloads folder.');
                         setTimeout(() => { startDownloadBtn.disabled = false; }, 1000);
-                        return; // Done — skip fallback
+                        return;
                     }
-                    // CDN fetch failed (CORS etc), fall through to Phase 2
                 }
             }
 
-            // ── Phase 2: Fallback to /api/download (reliable for local hosting) ──
-            progressStatus.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing & downloading on server...';
-            progressPercent.textContent = '30%';
-            progressBarFill.style.width = '40%';
-
-            const downloadUrl = `/api/download?url=${encodeURIComponent(videoUrl)}&quality=${encodeURIComponent(quality)}`;
-            const response = await fetch(downloadUrl);
-
-            if (!response.ok) {
-                const errJson = await response.json().catch(() => ({}));
-                throw new Error(errJson.detail || 'Download request failed.');
-            }
-
-            progressPercent.textContent = '85%';
-            progressBarFill.style.width = '88%';
-
-            // Get filename from response header if available
-            const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = `${currentVideoData.title}.${quality === 'audio' ? 'mp3' : 'mp4'}`;
-            if (contentDisposition && contentDisposition.includes('filename=')) {
-                const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
-                if (matches && matches[1]) {
-                    filename = matches[1].replace(/['"]/g, '');
-                }
-            }
-
-            // Stream response to blob
-            const blob = await response.blob();
-            const blobUrl = window.URL.createObjectURL(blob);
-
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-
-            // Finish Progress
-            progressPercent.textContent = '100%';
-            progressBarFill.style.width = '100%';
-            progressStatus.innerHTML = '<i class="fa-solid fa-circle-check" style="color: #10b981;"></i> Download Complete!';
-
-            addHistoryItem({
-                title: currentVideoData.title,
-                url: currentVideoData.url,
-                quality: quality.toUpperCase(),
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            });
-
-            showToast('Download started! Check your downloads folder.');
-
-            setTimeout(() => {
-                startDownloadBtn.disabled = false;
-            }, 1000);
+            throw new Error('Download failed across all methods.');
 
         } catch (err) {
             downloadProgressContainer.classList.add('hidden');

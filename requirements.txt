@@ -3,3 +3,5 @@ uvicorn>=0.28.0
 pytubefix>=10.10.0
 yt-dlp>=2024.3.10
 starlette>=0.36.0
+imageio-ffmpeg>=0.4.9
+

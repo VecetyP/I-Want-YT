@@ -63,6 +63,19 @@ def sanitize_filename(name: str) -> str:
     """Removes invalid filename characters."""
     return re.sub(r'[\\/*?:"<>|]', "", name)
 
+def get_ffmpeg_path() -> Optional[str]:
+    """Returns path to ffmpeg executable (from PATH or imageio-ffmpeg package)."""
+    import shutil
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if ffmpeg_bin:
+        return ffmpeg_bin
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
+
+
 def format_duration(seconds: int) -> str:
     """Formats duration in seconds to mm:ss or hh:mm:ss."""
     if not seconds:
@@ -100,7 +113,8 @@ def fetch_oembed_info(url: str) -> dict:
             "thumbnail_url": thumb_url or data.get('thumbnail_url', ''),
             "views": "Verified",
             "streams": [
-                {"id": "highest", "label": "Highest Quality MP4", "type": "video", "badge": "Best Quality"},
+                {"id": "highest", "label": "Highest Quality (1080p+)", "type": "video", "badge": "Best Quality"},
+                {"id": "1080p", "label": "1080p Full HD", "type": "video", "badge": "1080p MP4"},
                 {"id": "720p", "label": "720p HD Video", "type": "video", "badge": "720p MP4"},
                 {"id": "360p", "label": "360p SD Video", "type": "video", "badge": "360p MP4"},
                 {"id": "audio", "label": "Audio Only (MP3)", "type": "audio", "badge": "MP3 Audio"}
@@ -150,7 +164,8 @@ def get_video_info(url: str = Query(..., description="YouTube Video URL")):
         duration_str = format_duration(yt.length)
         
         streams = [
-            {"id": "highest", "label": "Highest Quality MP4", "type": "video", "badge": "Best Quality"},
+            {"id": "highest", "label": "Highest Quality (1080p+)", "type": "video", "badge": "Best Quality"},
+            {"id": "1080p", "label": "1080p Full HD", "type": "video", "badge": "1080p MP4"},
             {"id": "720p", "label": "720p HD Video", "type": "video", "badge": "720p MP4"},
             {"id": "360p", "label": "360p SD Video", "type": "video", "badge": "360p MP4"},
             {"id": "audio", "label": "Audio Only (MP3)", "type": "audio", "badge": "MP3 Audio"}
@@ -202,7 +217,8 @@ def get_video_info(url: str = Query(..., description="YouTube Video URL")):
                 "thumbnail_url": info.get('thumbnail', ''),
                 "views": f"{info.get('view_count', 0):,}",
                 "streams": [
-                    {"id": "highest", "label": "Highest Quality MP4", "type": "video", "badge": "Best Quality"},
+                    {"id": "highest", "label": "Highest Quality (1080p+)", "type": "video", "badge": "Best Quality"},
+                    {"id": "1080p", "label": "1080p Full HD", "type": "video", "badge": "1080p MP4"},
                     {"id": "720p", "label": "720p HD", "type": "video", "badge": "720p MP4"},
                     {"id": "360p", "label": "360p SD", "type": "video", "badge": "360p MP4"},
                     {"id": "audio", "label": "Audio Only (MP3)", "type": "audio", "badge": "MP3 Audio"}
@@ -312,6 +328,7 @@ def download_video(
         import yt_dlp
         out_tmpl = str(DOWNLOAD_DIR / f"%(title)s_{unique_id}.%(ext)s")
         
+        ffmpeg_bin = get_ffmpeg_path()
         common_ydl_opts = {
             'quiet': True,
             'no_warnings': True,
@@ -325,6 +342,9 @@ def download_video(
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
             }
         }
+        if ffmpeg_bin:
+            common_ydl_opts['ffmpeg_location'] = ffmpeg_bin
+            common_ydl_opts['merge_output_format'] = 'mp4'
         if YT_COOKIES:
             common_ydl_opts['http_headers']['Cookie'] = YT_COOKIES
 
@@ -336,13 +356,28 @@ def download_video(
         elif quality == "highest":
             ydl_opts = {
                 **common_ydl_opts,
-                'format': 'best[ext=mp4]/best[height<=1080]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
+                'format': 'bestvideo[height<=1080]+bestaudio/bestvideo+bestaudio/best' if ffmpeg_bin else 'best[ext=mp4]/best',
+            }
+        elif quality == "1080p":
+            ydl_opts = {
+                **common_ydl_opts,
+                'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best' if ffmpeg_bin else 'best[height<=1080]/best',
+            }
+        elif quality == "720p":
+            ydl_opts = {
+                **common_ydl_opts,
+                'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best' if ffmpeg_bin else 'best[height<=720]/best',
+            }
+        elif quality == "360p":
+            ydl_opts = {
+                **common_ydl_opts,
+                'format': 'bestvideo[height<=360]+bestaudio/best[height<=360]/best' if ffmpeg_bin else 'best[height<=360]/best',
             }
         else:
             height = quality.replace("p", "")
             ydl_opts = {
                 **common_ydl_opts,
-                'format': f'best[height<={height}][ext=mp4]/best[height<={height}]/bestvideo[height<={height}]+bestaudio/best',
+                'format': f'bestvideo[height<={height}]+bestaudio/best[height<={height}]/best' if ffmpeg_bin else f'best[height<={height}]/best',
             }
             
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
